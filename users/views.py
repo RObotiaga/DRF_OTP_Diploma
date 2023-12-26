@@ -20,33 +20,32 @@ account_sid = config('TWILIO_SID')
 auth_token = config('TWILIO_TOKEN')
 client = Client(account_sid, auth_token)
 
+
 class UserCreateAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
 
     def create(self, request, *args, **kwargs):
         phone = request.data.get('phone')
+
         if not phone:
             return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+        elif '+' in phone:
+            return Response({'error': 'Phone number format: "7XXXXXXXXXX"'}, status=status.HTTP_400_BAD_REQUEST)
 
         otp_code = get_random_string(length=4, allowed_chars='1234567890')
-        # if config('DEBUG'):
-        #     print(otp_code)
-        # else:
-        print(otp_code,config('NUMBER'),phone)
-        message = client.messages.create(
+        client.messages.create(
             body=otp_code,
             from_=config('NUMBER'),
             to=f'+{phone}'
         )
-        print(message.sid)
 
         user = CustomUser(phone=phone, one_time_password=otp_code)
         user.invite_code = generate_unique_invite_code()
         user.is_active = False
         user.save()
 
-        return Response({'message': 'OTP code sent successfully'}, status=status.HTTP_200_OK)
+        return Response({'message': f'OTP code sent successfully to the number {phone}'}, status=status.HTTP_200_OK)
 
 
 class UserRetrieveAPIView(generics.RetrieveAPIView):
@@ -94,6 +93,7 @@ class UserDeleteAPIView(generics.DestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response({"message": f"Пользователь {instance.phone} удален"}, status=status.HTTP_204_NO_CONTENT)
+
 
 def generate_unique_invite_code():
     while True:
