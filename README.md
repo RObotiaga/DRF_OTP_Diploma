@@ -24,6 +24,11 @@ DB_PORT=5432
 
 ACCESS_TOKEN_LIFETIME=1500
 REFRESH_TOKEN_LIFETIME=15
+
+#Также требуется регистрация в сервисе https://www.twilio.com/
+TWILIO_SID=
+TWILIO_TOKEN=
+NUMBER=
 ```
 # Запуск
 ### Запустите сервер 
@@ -36,3 +41,5 @@ REFRESH_TOKEN_LIFETIME=15
 # Postman
 Импортировать коллекцию запросов postman
 `https://api.postman.com/collections/30740427-8f1b58ab-7c84-4562-ae6f-976bb814328e?access_key=PMAT-01HJKC8A5PK9R2SJJQDXZRFMP5`
+# PythonAnywhere
+`http://aptemond.pythonanywhere.com/`
