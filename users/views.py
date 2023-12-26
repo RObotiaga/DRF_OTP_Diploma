@@ -1,13 +1,13 @@
 import logging
 import secrets
 import string
-
+from twilio.rest import Client
 from django.utils.crypto import get_random_string
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from decouple import config
 from .models import CustomUser
 from .permissions import IsCurrentUser
 from .serializers \
@@ -16,6 +16,9 @@ from .serializers \
 
 logger = logging.getLogger(__name__)
 
+account_sid = config('TWILIO_SID')
+auth_token = config('TWILIO_TOKEN')
+client = Client(account_sid, auth_token)
 
 class UserCreateAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
@@ -27,6 +30,17 @@ class UserCreateAPIView(generics.CreateAPIView):
             return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         otp_code = get_random_string(length=4, allowed_chars='1234567890')
+        # if config('DEBUG'):
+        #     print(otp_code)
+        # else:
+        print(otp_code,config('NUMBER'),phone)
+        message = client.messages.create(
+            body=otp_code,
+            from_=config('NUMBER'),
+            to=f'+{phone}'
+        )
+        print(message.sid)
+
         user = CustomUser(phone=phone, one_time_password=otp_code)
         user.invite_code = generate_unique_invite_code()
         user.is_active = False
