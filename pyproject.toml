@@ -20,6 +20,7 @@ redis = "^5.0.1"
 coverage = "^7.3.4"
 ruff = "^0.1.9"
 twilio = "^8.11.0"
+flake8 = "^6.1.0"
 
 
 [build-system]

@@ -24,9 +24,11 @@ class UserEditSerializer(serializers.ModelSerializer):
 
 
 class UserRegisterCodeAcceptSerializer(serializers.ModelSerializer):
+    password = serializers.ReadOnlyField()
+
     class Meta:
         model = CustomUser
-        fields = ('phone', 'one_time_password')
+        fields = ('phone', 'one_time_password', 'password')
 
 
 class UserInviteCodeSerializer(serializers.ModelSerializer):
