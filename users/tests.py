@@ -9,9 +9,9 @@ User = CustomUser
 class AuthenticationTests(APITestCase):
     def test_user_creation_with_phone_number(self):
         # Test creating a user with phone number
-        data = {'phone': '1234567890'}
+        data = {'phone': '79638551644'}
         response = self.client.post('/register/', data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_user_activation_with_code(self):
         # Test user activation with OTP code
@@ -20,6 +20,7 @@ class AuthenticationTests(APITestCase):
                             is_active=False)
         data = {'phone': '1234567890', 'one_time_password': '1234'}
         response = self.client.post('/code/', data)
+        print(response.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_user_invite_code_activation(self):

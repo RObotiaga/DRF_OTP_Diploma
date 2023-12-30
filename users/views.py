@@ -1,9 +1,7 @@
 import logging
-import secrets
-import string
 from twilio.rest import Client
 from django.utils.crypto import get_random_string
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,7 +10,9 @@ from .models import CustomUser
 from .permissions import IsCurrentUser
 from .serializers \
     import UserSerializerForOthers, \
-    UserRegisterCodeAcceptSerializer, UserInviteCodeSerializer, UserEditSerializer, UserSerializer
+    UserRegisterCodeAcceptSerializer, UserInviteCodeSerializer, \
+    UserEditSerializer, UserSerializer
+from .services import generate_unique_invite_code
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,15 @@ class UserCreateAPIView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
 
-    def create(self, request, *args, **kwargs):
-        phone = request.data.get('phone')
+    def perform_create(self, serializer):
+        phone = self.request.data.get('phone')
 
         if not phone:
-            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+            raise serializers.ValidationError(
+                {'phone': 'Phone number is required'})
         elif '+' in phone:
-            return Response({'error': 'Phone number format: "7XXXXXXXXXX"'}, status=status.HTTP_400_BAD_REQUEST)
+            raise serializers.ValidationError(
+                {'phone': 'Phone number format: "7XXXXXXXXXX"'})
 
         otp_code = get_random_string(length=4, allowed_chars='1234567890')
         client.messages.create(
@@ -40,12 +42,9 @@ class UserCreateAPIView(generics.CreateAPIView):
             to=f'+{phone}'
         )
 
-        user = CustomUser(phone=phone, one_time_password=otp_code)
+        user = serializer.save(one_time_password=otp_code, is_active=False)
         user.invite_code = generate_unique_invite_code()
-        user.is_active = False
         user.save()
-
-        return Response({'message': f'OTP code sent successfully to the number {phone}'}, status=status.HTTP_200_OK)
 
 
 class UserRetrieveAPIView(generics.RetrieveAPIView):
@@ -57,8 +56,10 @@ class UserRetrieveAPIView(generics.RetrieveAPIView):
             user = self.get_object()
             invite_code = user.invite_code
 
-            invited_users = CustomUser.objects.filter(activated_invite_code=invite_code)
-            invited_users_list = list(invited_users.values_list('phone', flat=True))
+            invited_users = (CustomUser.objects.filter(
+                activated_invite_code=invite_code)
+                             .values_list('phone', flat=True))
+            invited_users_list = list(invited_users)
 
             return Response({'phone': user.phone,
                              'invite_code': user.invite_code,
@@ -74,32 +75,18 @@ class UserUpdateAPIView(generics.UpdateAPIView):
     queryset = CustomUser.objects.all()
     permission_classes = [IsCurrentUser]
 
-    def update(self, request, *args, **kwargs):
-        password = request.data['password']
-        user = request.user
+    def perform_update(self, serializer):
+        password = self.request.data['password']
+        user = self.request.user
         user.set_password(password)
         user.save()
         RefreshToken.for_user(user)
-        return Response({'message': 'Password changed successfully'},
-                        status=status.HTTP_200_OK)
 
 
 class UserDeleteAPIView(generics.DestroyAPIView):
     serializer_class = UserEditSerializer
     queryset = CustomUser.objects.all()
     permission_classes = [IsCurrentUser]
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({"message": f"Пользователь {instance.phone} удален"}, status=status.HTTP_204_NO_CONTENT)
-
-
-def generate_unique_invite_code():
-    while True:
-        invite_code = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(6))
-        if not CustomUser.objects.filter(invite_code=invite_code).exists():
-            return invite_code
 
 
 class UserCodeAccept(generics.CreateAPIView):
@@ -128,17 +115,15 @@ class UserInviteCode(generics.UpdateAPIView):
     serializer_class = UserInviteCodeSerializer
     permission_classes = [IsAuthenticated]
 
-    def update(self, request, *args, **kwargs):
-        user = request.user  # Получение текущего авторизованного пользователя
-        invite_code = request.data.get('activated_invite_code')
-        print(invite_code)
+    def get_object(self):
+        return self.request.user
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        invite_code = serializer.validated_data.get('activated_invite_code')
         if user.activated_invite_code:
-            return Response({'message': f"Invite code already activated: "
-                                        f"{user.activated_invite_code}"},
-                            status=status.HTTP_400_BAD_REQUEST)
-        # Обновление информации о пользователе
+            raise serializers.ValidationError(
+                f"Invite code already activated: {user.activated_invite_code}"
+            )
         user.activated_invite_code = invite_code
         user.save()
-        return Response({'message': f"Invite code activated successfully "
-                                    f"{invite_code}"},
-                        status=status.HTTP_200_OK)
